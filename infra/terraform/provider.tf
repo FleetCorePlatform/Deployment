@@ -15,4 +15,8 @@ provider "aws" {
   # Only skip checks if testing
   skip_credentials_validation = var.aws_testing
   skip_requesting_account_id  = var.aws_testing
+
+  # only provide dummy keys if testing
+  access_key = var.aws_testing ? "FAKEKEY" : null
+  secret_key = var.aws_testing ? "FAKESECRET" : null
 }
