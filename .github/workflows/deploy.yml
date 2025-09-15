@@ -59,8 +59,14 @@ jobs:
   deploy:
     needs: [terraform-validate, ansible-validate]
     runs-on: ubuntu-latest
-    if: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.RDS_PASSWORD != '' }}
     steps:
+      - name: Check required secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.RDS_PASSWORD }}" ]; then
+            echo "Missing required secrets, aborting"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - name: Setup AWS CLI
@@ -121,10 +127,14 @@ jobs:
       - name: Upload artifacts to S3
         env:
           BUCKET: ${{ steps.s3.outputs.bucket }}
+          LAMBDA_KEY: ${{ secrets.LAMBDA_S3_KEY }}
+          JAR_KEY: ${{ secrets.JAR_S3_KEY }}
         run: |
-          # Upload lambda code
-          aws s3 cp infra/terraform/mission_end.zip s3://$BUCKET/${{ secrets.LAMBDA_S3_KEY | default('lambda/mission_end.zip') }}
-          # Upload jar produced by maven (assumes the jar name contains FleetCoreServer)
+          LAMBDA_KEY="${LAMBDA_KEY:-lambda/mission_end.zip}"
+          JAR_KEY="${JAR_KEY:-artifacts/FleetCoreServer.jar}"
+
+          aws s3 cp infra/terraform/mission_end.zip s3://$BUCKET/$LAMBDA_KEY
+
           JAR=$(ls target/*FleetCoreServer*.jar | head -n1 || true)
           if [ -z "$JAR" ]; then
             # fallback to first jar
@@ -134,10 +144,11 @@ jobs:
             echo "No JAR found in target/, aborting"
             exit 1
           fi
-          aws s3 cp "$JAR" s3://$BUCKET/${{ secrets.JAR_S3_KEY | default('artifacts/FleetCoreServer.jar') }}
+          aws s3 cp "$JAR" s3://$BUCKET/$JAR_KEY
+
           echo "s3_bucket=$BUCKET" >> $GITHUB_OUTPUT
-          echo "jar_key=${{ secrets.JAR_S3_KEY | default('artifacts/FleetCoreServer.jar') }}" >> $GITHUB_OUTPUT
-          echo "lambda_key=${{ secrets.LAMBDA_S3_KEY | default('lambda/mission_end.zip') }}" >> $GITHUB_OUTPUT
+          echo "jar_key=$JAR_KEY" >> $GITHUB_OUTPUT
+          echo "lambda_key=$LAMBDA_KEY" >> $GITHUB_OUTPUT
 
       - name: Terraform Apply (create infra)
         working-directory: ${{ env.TF_DIR }}
