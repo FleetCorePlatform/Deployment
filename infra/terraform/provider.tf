@@ -10,7 +10,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.aws_testing ? "us-east-1" : var.aws_region
   
   # Only skip checks if testing
   skip_credentials_validation = var.aws_testing
