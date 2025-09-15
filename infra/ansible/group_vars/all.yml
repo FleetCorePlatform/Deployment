@@ -1,0 +1,17 @@
+---
+# Global Ansible variables for FleetCoreServer deployment
+
+# Application settings
+app_name: FleetCoreServer
+app_branch: main   # overridden from tfvars outputs
+
+# Database settings (to be aligned with db_design diagram later)
+db_host: "{{ lookup('env', 'DB_HOST') | default('localhost') }}"
+db_port: 5432
+db_name: fleetcore
+db_user: fleetcore_user
+db_password: changeme
+
+# Deployment settings
+ansible_user: ubuntu
+ansible_ssh_private_key_file: "../terraform/private_key.pem"

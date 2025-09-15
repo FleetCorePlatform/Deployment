@@ -1,0 +1,50 @@
+- name: Create app directory
+  file:
+    path: /opt/fleetcore
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Download JAR from S3
+  become_user: ubuntu
+  shell: |
+    if [ -z "{{ app_jar_s3_bucket }}" ]; then
+      echo "No S3 bucket provided, expecting local build"
+      exit 1
+    fi
+    aws s3 cp s3://{{ app_jar_s3_bucket }}/{{ app_jar_s3_key }} /opt/fleetcore/FleetCoreServer.jar
+  args:
+    creates: /opt/fleetcore/FleetCoreServer.jar
+
+- name: Create systemd unit for FleetCore
+  copy:
+    dest: /etc/systemd/system/fleetcore.service
+    content: |
+      [Unit]
+      Description=FleetCoreServer Java service
+      After=network.target
+
+      [Service]
+      User=ubuntu
+      WorkingDirectory=/opt/fleetcore
+      ExecStart=/usr/bin/java -jar /opt/fleetcore/FleetCoreServer.jar
+      Environment=DB_HOST={{ rds_endpoint }}
+      Environment=DB_PORT={{ rds_port }}
+      Environment=DB_NAME={{ rds_db }}
+      Environment=DB_USER={{ rds_user }}
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Start and enable FleetCore
+  systemd:
+    name: fleetcore
+    enabled: true
+    state: restarted

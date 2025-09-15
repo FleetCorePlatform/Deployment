@@ -1,0 +1,203 @@
+name: Deploy FleetCoreServer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 1-deployment-with-terraform-and-ansible
+  pull_request:
+    branches:
+      - 1-deployment-with-terraform-and-ansible
+
+env:
+  TF_DIR: infra/terraform
+  ANSIBLE_DIR: infra/ansible
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Prepare tfvars
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          if [ ! -f terraform.tfvars ]; then
+            cp terraform.tfvars.sample terraform.tfvars
+          fi
+
+      - name: Terraform Init (no backend)
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan (show)
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform plan -refresh=false
+
+  ansible-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          sudo apt update && sudo apt install -y python3-pip
+          pip3 install ansible
+
+      - name: Syntax check playbooks
+        working-directory: ${{ env.ANSIBLE_DIR }}
+        run: ansible-playbook --syntax-check playbooks/site.yml
+
+  deploy:
+    needs: [terraform-validate, ansible-validate]
+    runs-on: ubuntu-latest
+    if: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.RDS_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup AWS CLI
+        run: |
+          sudo apt update && sudo apt install -y unzip curl jq
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+      - name: Configure AWS creds
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init (with backend disabled for PRs)
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init
+
+      - name: Build Lambda package (placeholder)
+        run: |
+          # Create a minimal lambda python handler (if you have custom code, replace this)
+          mkdir -p infra/terraform/lambda
+          cat > infra/terraform/lambda/handler.py <<'PY'
+          def lambda_handler(event, context):
+              print("mission_end triggered")
+              return {"status": "ok"}
+          PY
+          pushd infra/terraform/lambda
+          zip -r ../mission_end.zip .
+          popd
+
+      - name: Build Maven artifact (jar)
+        run: |
+          sudo apt update && sudo apt install -y maven openjdk-17-jdk
+          mvn -f pom.xml clean package -DskipTests
+          ls -lah target || true
+
+      - name: Create S3 bucket if not exists (artifact bucket from variable)
+        id: s3
+        run: |
+          # Use the bucket defined by tfvars or default - we will read it from terraform plan if provided
+          # For reliability, allow setting S3 bucket name via secret S3_BUCKET_OVERRIDE
+          if [ -n "${{ secrets.S3_BUCKET_OVERRIDE }}" ]; then
+            BUCKET="${{ secrets.S3_BUCKET_OVERRIDE }}"
+          else
+            # generate a temporary name if not provided
+            BUCKET="fleetcore-artifacts-ci-${{ github.run_id }}"
+          fi
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+          aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null || aws s3 mb "s3://$BUCKET"
+
+      - name: Upload artifacts to S3
+        env:
+          BUCKET: ${{ steps.s3.outputs.bucket }}
+        run: |
+          # Upload lambda code
+          aws s3 cp infra/terraform/mission_end.zip s3://$BUCKET/${{ secrets.LAMBDA_S3_KEY | default('lambda/mission_end.zip') }}
+          # Upload jar produced by maven (assumes the jar name contains FleetCoreServer)
+          JAR=$(ls target/*FleetCoreServer*.jar | head -n1 || true)
+          if [ -z "$JAR" ]; then
+            # fallback to first jar
+            JAR=$(ls target/*.jar | head -n1)
+          fi
+          if [ -z "$JAR" ]; then
+            echo "No JAR found in target/, aborting"
+            exit 1
+          fi
+          aws s3 cp "$JAR" s3://$BUCKET/${{ secrets.JAR_S3_KEY | default('artifacts/FleetCoreServer.jar') }}
+          echo "s3_bucket=$BUCKET" >> $GITHUB_OUTPUT
+          echo "jar_key=${{ secrets.JAR_S3_KEY | default('artifacts/FleetCoreServer.jar') }}" >> $GITHUB_OUTPUT
+          echo "lambda_key=${{ secrets.LAMBDA_S3_KEY | default('lambda/mission_end.zip') }}" >> $GITHUB_OUTPUT
+
+      - name: Terraform Apply (create infra)
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          # Pass needed variables; we set rds_password from secrets
+          terraform apply -auto-approve \
+            -var="rds_password=${{ secrets.RDS_PASSWORD }}" \
+            -var="s3_bucket_name=${{ steps.s3.outputs.bucket }}" \
+            -var="jar_s3_key=${{ steps.s3.outputs.jar_key }}" \
+            -var="lambda_s3_key=${{ steps.s3.outputs.lambda_key }}"
+
+      - name: Export terraform outputs
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform output -json > tf_outputs.json
+          cat tf_outputs.json
+
+      - name: Upload tf outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf_outputs
+          path: ${{ env.TF_DIR }}/tf_outputs.json
+
+      - name: Download tf outputs and generate inventory + envs
+        uses: actions/download-artifact@v4
+        with:
+          name: tf_outputs
+          path: infra/terraform
+
+      - name: Generate Ansible inventory
+        run: |
+          echo "[app]" > infra/ansible/inventory/hosts.ini
+          jq -r '.public_ips.value[]' infra/terraform/tf_outputs.json | \
+          while read ip; do
+            echo "$ip ansible_user=ubuntu ansible_ssh_private_key_file=./infra/terraform/private_key.pem" >> infra/ansible/inventory/hosts.ini
+          done
+          cp <(jq -r '.private_key_pem.value' infra/terraform/tf_outputs.json) infra/terraform/private_key.pem
+          chmod 600 infra/terraform/private_key.pem
+          # Export app_branch for Ansible
+          jq -r '.app_branch.value' infra/terraform/tf_outputs.json > infra/ansible/group_vars/app_branch.txt
+
+      - name: Save private key (from terraform outputs)
+        run: |
+          # extract private key
+          jq -r '.private_key_pem.value' infra/terraform/tf_outputs.json > infra/terraform/private_key.pem
+          chmod 600 infra/terraform/private_key.pem
+
+      - name: Install Ansible
+        run: |
+          sudo apt update && sudo apt install -y python3-pip
+          pip3 install ansible
+
+      - name: Run Ansible playbook
+        working-directory: ${{ env.ANSIBLE_DIR }}
+        run: |
+          branch=$(cat group_vars/app_branch.txt)
+          ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+            -e "app_branch=$branch" \
+            --ssh-extra-args='-o StrictHostKeyChecking=no'
