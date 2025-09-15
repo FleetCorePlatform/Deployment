@@ -209,6 +209,6 @@ jobs:
         working-directory: ${{ env.ANSIBLE_DIR }}
         run: |
           branch=$(cat group_vars/app_branch.txt)
-          ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+          ansible-playbook -i inventory/hosts.ini --syntax-check playbooks/site.yml \
             -e "app_branch=$branch" \
             --ssh-extra-args='-o StrictHostKeyChecking=no'
