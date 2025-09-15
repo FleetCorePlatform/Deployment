@@ -74,16 +74,14 @@ jobs:
     needs: [terraform-validate, ansible-validate]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Ensure AWS creds + RDS password
+      - name: Check required secrets
         run: |
-          for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION RDS_PASSWORD; do
-            if [ -z "${{ secrets[$var] }}" ]; then
-              echo "$var secret missing, aborting"
-              exit 1
-            fi
-          done
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.RDS_PASSWORD }}" ]; then
+            echo "Missing required secrets, aborting"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
 
       - name: Setup AWS CLI
         run: |
