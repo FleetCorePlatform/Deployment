@@ -11,4 +11,8 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+  
+  # Only skip checks if testing
+  skip_credentials_validation = var.aws_testing
+  skip_requesting_account_id  = var.aws_testing
 }

@@ -75,3 +75,8 @@ variable "rds_password" {
   type      = string
   sensitive = true
 }
+
+variable "aws_testing" {
+  type    = bool
+  default = false
+}

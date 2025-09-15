@@ -54,7 +54,7 @@ jobs:
 
       - name: Terraform Plan (show)
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -refresh=false
+        run: terraform plan -var="aws_testing=true" -refresh=false
 
   ansible-validate:
     runs-on: ubuntu-latest
