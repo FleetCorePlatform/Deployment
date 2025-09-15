@@ -28,4 +28,4 @@ lambda_s3_key  = "lambda/mission_end.zip"
 rds_db_name   = "fleetcore"
 rds_username  = "fleetcore"
 # Set your password in a separate terraform.tfvars (or via GH secret)
-# rds_password = "YOUR_PASSWORD_HERE"
+rds_password = "YOUR_PASSWORD_HERE"  # replace in CI with secret
