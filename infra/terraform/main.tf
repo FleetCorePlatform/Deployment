@@ -25,7 +25,7 @@ resource "aws_subnet" "fleetcore_subnet" {
   vpc_id                  = aws_vpc.fleetcore_vpc.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
-  availability_zone       = var.aws_testing ? "us-east-1a" : data.aws_availability_zones.available[0].name
+  availability_zone       = var.aws_testing ? "us-east-1a" : data.aws_availability_zones.available.names[0]
   tags                    = { Name = "fleetcore-subnet" }
 }
 
