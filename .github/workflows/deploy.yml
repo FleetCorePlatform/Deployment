@@ -2,6 +2,11 @@ name: Deploy FleetCoreServer
 
 on:
   workflow_dispatch:
+    inputs:
+      java_branch:
+        description: 'Branch of the Java repo to build'
+        default: 'main'
+        required: false
   push:
     branches:
       - main
@@ -128,6 +133,12 @@ jobs:
           pushd ${{ env.TF_DIR }}/lambda
           zip -r ../mission_end.zip .
           popd
+
+      - name: Checkout Java project
+        uses: actions/checkout@v4
+        with:
+          repository: FleetCore-Platform/FleetCoreServer
+          ref: ${{ github.event.inputs.java_branch || 'main' }}
 
       - name: Build Maven artifact (jar)
         run: |
