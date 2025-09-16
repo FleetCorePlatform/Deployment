@@ -80,6 +80,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
         run: |
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+          echo "RDS_PASSWORD set: ${RDS_PASSWORD:+yes}"
           if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$RDS_PASSWORD" ]; then
             echo "Missing required secrets, aborting"
             exit 1
