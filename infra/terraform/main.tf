@@ -17,7 +17,10 @@ resource "aws_vpc" "fleetcore_vpc" {
   tags = { Name = "fleetcore-vpc" }
 }
 
-data "aws_availability_zones" "available" {}
+// Availability zones (skip in testing)
+data "aws_availability_zones" "available" {
+  count = local.real ? 1 : 0
+}
 
 resource "aws_subnet" "fleetcore_subnet" {
   vpc_id                  = aws_vpc.fleetcore_vpc.id
@@ -116,18 +119,26 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 }
 
 # EC2 (Ubuntu AMI)
+# Skip AMI lookup in testing mode
 data "aws_ami" "ubuntu" {
+  count       = local.real ? 1 : 0
   most_recent = true
   owners      = ["099720109477"]
+
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
 }
 
+# Provide dummy AMI in testing
+locals {
+  app_ami = local.real ? data.aws_ami.ubuntu[0].id : "ami-FAKE1234"
+}
+
 resource "aws_instance" "fleetcore_app" {
-  count         = var.instance_count
-  ami           = data.aws_ami.ubuntu.id
+  count         = local.real ? var.instance_count : 0
+  ami           = local.app_ami
   instance_type = var.instance_type
   key_name      = aws_key_pair.fleetcore.key_name
   subnet_id     = aws_subnet.fleetcore_subnet.id
@@ -267,6 +278,12 @@ resource "aws_lambda_function" "mission_end" {
 # Note: IoT actions & SQS subscriptions may be wired up later with aws_iot_topic_rule resources as needed.
 
 # small data resource to get IoT endpoint
+# Only query AWS IoT in real mode
 data "aws_iot_endpoint" "iot" {
-  endpoint_type = "iot:Data-ATS"
+  count = local.real ? 1 : 0
+}
+
+# Provide dummy IoT endpoint in testing
+locals {
+  iot_endpoint = local.real ? data.aws_iot_endpoint.iot[0].endpoint_address : "iot.fake.local"
 }
