@@ -10,17 +10,16 @@ on:
     branches:
       - 1-deployment-with-terraform-and-ansible
 
-# Workflow-level environment variables
 env:
   TF_DIR: infra/terraform
   ANSIBLE_DIR: infra/ansible
-  AWS_TESTING: true  # set to true for testing; false for real deployments
+  AWS_TESTING: true  # true for testing, false for real deployments
 
 jobs:
   terraform-validate:
     runs-on: ubuntu-latest
     env:
-      AWS_TESTING: ${{ env.AWS_TESTING }}
+      AWS_TESTING: true  # direct assignment
     steps:
       - uses: actions/checkout@v4
 
@@ -56,9 +55,11 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
 
-      - name: Terraform Plan (show)
+      - name: Terraform Plan
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -var="aws_testing=${AWS_TESTING}" -refresh=false
+        env:
+          AWS_TESTING: true
+        run: terraform plan -var="aws_testing=true" -refresh=false
 
   ansible-validate:
     runs-on: ubuntu-latest
@@ -77,28 +78,19 @@ jobs:
   deploy:
     needs: [terraform-validate, ansible-validate]
     runs-on: ubuntu-latest
-    env:
-      AWS_TESTING: ${{ env.AWS_TESTING }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
     steps:
       - name: Check required secrets (skip in testing)
         run: |
           echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
           echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
           echo "RDS_PASSWORD set: ${RDS_PASSWORD:+yes}"
-          if [ "$AWS_TESTING" != "true" ]; then
-            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$RDS_PASSWORD" ]; then
+          if [ "${{ env.AWS_TESTING }}" = "true" ]; then
+            echo "AWS_TESTING is true – skipping secrets check"
+          else
+            if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.RDS_PASSWORD }}" ]; then
               echo "Missing required secrets, aborting"
               exit 1
             fi
-          else
-            echo "AWS_TESTING=true, skipping secrets check"
-            export AWS_ACCESS_KEY_ID="FAKEKEY"
-            export AWS_SECRET_ACCESS_KEY="FAKESECRET"
-            export RDS_PASSWORD="FAKEDB"
           fi
 
       - uses: actions/checkout@v4
@@ -111,11 +103,12 @@ jobs:
           sudo ./aws/install
 
       - name: Configure AWS creds
+        if: ${{ env.AWS_TESTING != 'true' }}
         env:
-          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
-        run: aws sts get-caller-identity || echo "Skipped in AWS_TESTING mode"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: aws sts get-caller-identity
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
