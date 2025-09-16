@@ -31,7 +31,7 @@ output "cognito_user_pool_id" {
 }
 
 output "iot_endpoint" {
-  value = data.aws_iot_endpoint.iot.endpoint_address
+  value = var.aws_testing ? "test.iot.local" : data.aws_iot_endpoint.iot[0].endpoint_address
 }
 
 output "private_key_pem" {

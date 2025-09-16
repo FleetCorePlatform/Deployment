@@ -17,13 +17,15 @@ resource "aws_vpc" "fleetcore_vpc" {
   tags = { Name = "fleetcore-vpc" }
 }
 
-data "aws_availability_zones" "available" {}
+data "aws_availability_zones" "available" {
+  count = var.aws_testing ? 0 : 1
+}
 
 resource "aws_subnet" "fleetcore_subnet" {
   vpc_id                  = aws_vpc.fleetcore_vpc.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = var.aws_testing ? "us-east-1a" : data.aws_availability_zones.available[0].name
   tags                    = { Name = "fleetcore-subnet" }
 }
 
@@ -117,6 +119,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 
 # EC2 (Ubuntu AMI)
 data "aws_ami" "ubuntu" {
+  count      = var.aws_testing ? 0 : 1
   most_recent = true
   owners      = ["099720109477"]
   filter {
@@ -127,7 +130,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_instance" "fleetcore_app" {
   count         = var.instance_count
-  ami           = data.aws_ami.ubuntu.id
+  ami           = var.aws_testing ? "ami-12345678" : data.aws_ami.ubuntu[0].id
   instance_type = var.instance_type
   key_name      = aws_key_pair.fleetcore.key_name
   subnet_id     = aws_subnet.fleetcore_subnet.id
@@ -268,5 +271,6 @@ resource "aws_lambda_function" "mission_end" {
 
 # small data resource to get IoT endpoint
 data "aws_iot_endpoint" "iot" {
+  count         = var.aws_testing ? 0 : 1
   endpoint_type = "iot:Data-ATS"
 }
