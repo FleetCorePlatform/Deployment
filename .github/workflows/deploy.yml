@@ -31,6 +31,27 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
+      - name: Prepare tfvars
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          cat > terraform.tfvars <<EOF
+          cloud_provider = "aws"
+          aws_region = "${{ secrets.AWS_REGION }}"
+          vpc_cidr_block = "10.0.0.0/16"
+          public_subnet_cidr = "10.0.1.0/24"
+          private_subnet_cidr = "10.0.2.0/24"
+          ssh_key_name = "fleetcore_key"
+          app_branch = "main"
+          instance_type = "t3.micro"
+          instance_count = 1
+          s3_bucket_name = "fleetcore-artifacts"
+          jar_s3_key = "artifacts/FleetCoreServer.jar"
+          lambda_s3_key = "lambda/mission_end.zip"
+          rds_db_name = "fleetcore"
+          rds_username = "fleetcore"
+          rds_password = "${{ secrets.RDS_PASSWORD }}"
+          EOF
+
       - name: Terraform Init (no backend)
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -backend=false
@@ -43,7 +64,7 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           AWS_TESTING: true
-        run: terraform plan -var="aws_testing=true" -refresh=false
+        run: terraform plan -var="aws_testing=true" -var-file="terraform.tfvars" -refresh=false
 
   ansible-validate:
     runs-on: ubuntu-latest
