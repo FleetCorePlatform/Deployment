@@ -141,24 +141,22 @@ jobs:
           ref: main
           path: libs/FleetCoreLib
 
-      - name: Install JDK 21 & Maven
-        run: |
-          sudo apt update
-          sudo apt install -y maven openjdk-21-jdk
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
       
-      - name: Print versions
+      - name: Print Java & Maven Versions
         run: |
           mvn -version
           java -version
 
       - name: Build FleetCoreLib locally
         run: |
-          mvn -f libs/FleetCoreLib/pom.xml \
-            clean install -DskipTests \
-            -Dmaven.compiler.release=21 \
-            -Dmaven.compiler.source=21 \
-            -Dmaven.compiler.target=21 \
-            -Dmaven.compiler.plugin.version=3.14.0
+          mvn -f libs/FleetCoreLib/pom.xml clean install -DskipTests
+          
       - name: Checkout FleetCoreServer
         uses: actions/checkout@v4
         with:
