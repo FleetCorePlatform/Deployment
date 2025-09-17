@@ -133,17 +133,28 @@ jobs:
           pushd ${{ env.TF_DIR }}/lambda
           zip -r ../mission_end.zip .
           popd
+      
+      - name: Checkout FleetCoreLib
+        uses: actions/checkout@v4
+        with:
+          repository: FleetCore-Platform/FleetCoreLib
+          path: libs/FleetCoreLib
 
-      - name: Checkout Java project
+      - name: Install FleetCoreLib locally
+        run: |
+          sudo apt update && sudo apt install -y maven openjdk-17-jdk
+          mvn -f libs/FleetCoreLib/pom.xml clean install -DskipTests
+
+      - name: Checkout FleetCoreServer
         uses: actions/checkout@v4
         with:
           repository: FleetCore-Platform/FleetCoreServer
           ref: ${{ github.event.inputs.java_branch || 'main' }}
+          path: server/FleetCoreServer
 
-      - name: Build Maven artifact (jar)
+      - name: Build FleetCoreServer artifact (jar)
         run: |
-          sudo apt update && sudo apt install -y maven openjdk-17-jdk
-          mvn -f pom.xml clean package -DskipTests
+          mvn -f server/FleetCoreServer/pom.xml clean package -DskipTests
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_DIR }}
