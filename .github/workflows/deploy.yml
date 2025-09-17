@@ -172,7 +172,7 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           TF_LOG: INFO
-        run: terraform apply -var="aws_testing=${AWS_TESTING}" -auto-approve
+        run: terraform apply -var-file="terraform.tfvars" -var="aws_testing=${AWS_TESTING}" -auto-approve
 
       - name: Export Terraform outputs
         working-directory: ${{ env.TF_DIR }}
