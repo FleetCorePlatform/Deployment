@@ -138,11 +138,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: FleetCore-Platform/FleetCoreLib
+          ref: main
           path: libs/FleetCoreLib
 
-      - name: Install FleetCoreLib locally
+      - name: Install JDK 21 & Maven
         run: |
-          sudo apt update && sudo apt install -y maven openjdk-21-jdk
+          sudo apt update
+          sudo apt install -y maven openjdk-21-jdk
+
+      - name: Build FleetCoreLib locally
+        run: |
           mvn -f libs/FleetCoreLib/pom.xml clean install -DskipTests
 
       - name: Checkout FleetCoreServer
@@ -150,11 +155,11 @@ jobs:
         with:
           repository: FleetCore-Platform/FleetCoreServer
           ref: ${{ github.event.inputs.java_branch || 'main' }}
-          path: server/FleetCoreServer
+          path: FleetCoreServer
 
-      - name: Build FleetCoreServer artifact (jar)
+      - name: Build FleetCoreServer (jar)
         run: |
-          mvn -f server/FleetCoreServer/pom.xml clean package -DskipTests
+          mvn -f FleetCoreServer/pom.xml clean package -DskipTests
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_DIR }}
