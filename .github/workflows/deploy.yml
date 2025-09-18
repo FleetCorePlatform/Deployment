@@ -191,7 +191,17 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           TF_LOG: INFO
-        run: terraform apply -var-file="terraform.tfvars" -var="aws_testing=${AWS_TESTING}" -auto-approve
+          # Only set credentials if not testing
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_TESTING != 'true' && secrets.AWS_ACCESS_KEY_ID || '' }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_TESTING != 'true' && secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_TESTING != 'true' && secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          if [ "${AWS_TESTING}" = "true" ]; then
+            echo "Testing mode: skipping real AWS resources"
+            terraform apply -var="aws_testing=true" -auto-approve
+          else
+            terraform apply -var-file="terraform.tfvars" -var="aws_testing=false" -auto-approve
+          fi
 
       - name: Export Terraform outputs
         working-directory: ${{ env.TF_DIR }}
