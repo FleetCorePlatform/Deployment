@@ -1,0 +1,12 @@
+[Unit]
+Description=FleetCoreServer Java service
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/fleetcore
+ExecStart=/usr/bin/java -jar /opt/fleetcore/FleetCoreServer.jar
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

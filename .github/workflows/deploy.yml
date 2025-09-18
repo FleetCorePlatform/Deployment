@@ -1,0 +1,231 @@
+name: Deploy FleetCoreServer
+
+on:
+  workflow_dispatch:
+    inputs:
+      java_branch:
+        description: 'Branch of the Java repo to build'
+        default: 'main'
+        required: false
+  push:
+    branches:
+      - main
+      - 1-deployment-with-terraform-and-ansible
+  pull_request:
+    branches:
+      - 1-deployment-with-terraform-and-ansible
+
+env:
+  TF_DIR: infra/terraform
+  ANSIBLE_DIR: infra/ansible
+  AWS_TESTING: true  # true for testing, false for real deployments
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    env:
+      AWS_TESTING: true  # direct assignment
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Prepare tfvars
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          cat > terraform.tfvars <<EOF
+          cloud_provider = "aws"
+          aws_region = "${{ secrets.AWS_REGION }}"
+          vpc_cidr_block = "10.0.0.0/16"
+          public_subnet_cidr = "10.0.1.0/24"
+          private_subnet_cidr = "10.0.2.0/24"
+          ssh_key_name = "fleetcore_key"
+          app_branch = "main"
+          instance_type = "t3.micro"
+          instance_count = 1
+          s3_bucket_name = "fleetcore-artifacts"
+          jar_s3_key = "artifacts/FleetCoreServer.jar"
+          lambda_s3_key = "lambda/mission_end.zip"
+          rds_db_name = "fleetcore"
+          rds_username = "fleetcore"
+          rds_password = "${{ secrets.RDS_PASSWORD }}"
+          EOF
+
+      - name: Terraform Init (no backend)
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          AWS_TESTING: true
+        run: terraform plan -var="aws_testing=true" -var-file="terraform.tfvars" -refresh=false
+
+  ansible-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          sudo apt update && sudo apt install -y python3-pip
+          pip3 install ansible
+
+      - name: Syntax check playbooks
+        working-directory: ${{ env.ANSIBLE_DIR }}
+        run: ansible-playbook --syntax-check playbooks/site.yml
+
+  deploy:
+    needs: [terraform-validate, ansible-validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required secrets (skip in testing)
+        run: |
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+          echo "RDS_PASSWORD set: ${RDS_PASSWORD:+yes}"
+          if [ "${{ env.AWS_TESTING }}" = "true" ]; then
+            echo "AWS_TESTING is true – skipping secrets check"
+          else
+            if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.RDS_PASSWORD }}" ]; then
+              echo "Missing required secrets, aborting"
+              exit 1
+            fi
+          fi
+
+      - name: Setup AWS CLI
+        run: |
+          sudo apt update && sudo apt install -y unzip curl jq
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Configure AWS creds
+        if: ${{ env.AWS_TESTING != 'true' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Prepare terraform.tfvars
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          cat > terraform.tfvars <<EOF
+          cloud_provider = "aws"
+          aws_region = "${{ secrets.AWS_REGION }}"
+          vpc_cidr_block = "10.0.0.0/16"
+          public_subnet_cidr = "10.0.1.0/24"
+          private_subnet_cidr = "10.0.2.0/24"
+          ssh_key_name = "fleetcore_key"
+          app_branch = "main"
+          instance_type = "t3.micro"
+          instance_count = 1
+          s3_bucket_name = "fleetcore-artifacts"
+          jar_s3_key = "artifacts/FleetCoreServer.jar"
+          lambda_s3_key = "lambda/mission_end.zip"
+          rds_db_name = "fleetcore"
+          rds_username = "fleetcore"
+          rds_password = "${{ secrets.RDS_PASSWORD }}"
+          EOF
+
+      - name: Terraform Init (with backend disabled for PRs)
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init
+
+      - name: Build Lambda package
+        run: |
+          mkdir -p ${{ env.TF_DIR }}/lambda
+          cat > ${{ env.TF_DIR }}/lambda/handler.py <<'PY'
+          def lambda_handler(event, context):
+              print("mission_end triggered")
+              return {"status": "ok"}
+          PY
+          pushd ${{ env.TF_DIR }}/lambda
+          zip -r ../mission_end.zip .
+          popd
+      
+      - name: Checkout FleetCoreLib
+        uses: actions/checkout@v4
+        with:
+          repository: FleetCore-Platform/FleetCoreLib
+          ref: main
+          path: libs/FleetCoreLib
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      
+      - name: Print Java & Maven Versions
+        run: |
+          mvn -version
+          java -version
+
+      - name: Build FleetCoreLib locally
+        run: mvn -f libs/FleetCoreLib/pom.xml clean install -DskipTests
+
+      - name: Checkout FleetCoreServer
+        uses: actions/checkout@v4
+        with:
+          repository: FleetCore-Platform/FleetCoreServer
+          ref: ${{ github.event.inputs.java_branch || 'main' }}
+          path: FleetCoreServer
+
+      - name: Build FleetCoreServer (jar)
+        run: mvn -f FleetCoreServer/pom.xml clean package -DskipTests
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_LOG: INFO
+          # Only set credentials if not testing
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_TESTING != 'true' && secrets.AWS_ACCESS_KEY_ID || '' }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_TESTING != 'true' && secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_TESTING != 'true' && secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          if [ "${AWS_TESTING}" = "true" ]; then
+            echo "Testing mode: skipping real AWS resources"
+            terraform apply -var="aws_testing=true" -auto-approve
+          else
+            terraform apply -var-file="terraform.tfvars" -var="aws_testing=false" -auto-approve
+          fi
+
+      - name: Export Terraform outputs
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform output -json > tf_outputs.json
+
+      - name: Upload tf outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf_outputs
+          path: ${{ env.TF_DIR }}/tf_outputs.json
+
+      - name: Generate Ansible inventory
+        run: |
+          mkdir -p ${{ env.ANSIBLE_DIR }}/inventory
+          echo "[app]" > ${{ env.ANSIBLE_DIR }}/inventory/hosts.ini
+          jq -r '.public_ips.value[]' ${{ env.TF_DIR }}/tf_outputs.json | \
+          while read ip; do
+            echo "$ip ansible_user=ubuntu ansible_ssh_private_key_file=${{ env.TF_DIR }}/private_key.pem" >> ${{ env.ANSIBLE_DIR }}/inventory/hosts.ini
+          done
+          jq -r '.private_key_pem.value' ${{ env.TF_DIR }}/tf_outputs.json > ${{ env.TF_DIR }}/private_key.pem
+          chmod 600 ${{ env.TF_DIR }}/private_key.pem
+
+      - name: Run Ansible playbook
+        working-directory: ${{ env.ANSIBLE_DIR }}
+        run: |
+          branch=$(jq -r '.app_branch.value' ../terraform/tf_outputs.json)
+          ansible-playbook -i inventory/hosts.ini playbooks/site.yml -e "app_branch=$branch" --ssh-extra-args='-o StrictHostKeyChecking=no'
