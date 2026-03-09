@@ -86,30 +86,32 @@ resource "aws_security_group" "fleetcore_sg" {
   tags = { Name = "fleetcore-sg" }
 }
 
-# EC2 instance profile & IAM role (allow S3 get & SQS read & RDS connect via secrets if later)
-data "aws_iam_policy_document" "ec2_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["ec2.amazonaws.com"]
-    }
-  }
-}
-
+# EC2 instance profile & IAM role
 resource "aws_iam_role" "ec2_role" {
-  name               = "fleetcore-ec2-role-${random_id.suffix.hex}"
-  assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
+  name = "fleetcore-ec2-role-${random_id.suffix.hex}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
 }
 
-resource "aws_iam_role_policy_attachment" "s3_read" {
+resource "aws_iam_role_policy_attachment" "s3_access" {
   role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
 resource "aws_iam_role_policy_attachment" "sqs_access" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "iot_access" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSIoTFullAccess"
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
@@ -140,136 +142,122 @@ resource "aws_instance" "fleetcore_app" {
   tags = { Name = "fleetcore-app-${count.index}" }
 }
 
-# S3 bucket for artifacts & logs; lifecycle transitions to Glacier after 90 days
-resource "aws_s3_bucket" "artifacts" {
-  bucket = var.s3_bucket_name
-  acl    = "private"
+# S3 bucket for missions and detections
+resource "aws_s3_bucket" "mission_bucket" {
+  bucket = "fleetcore-mission-bucket"
+  tags   = { Name = "fleetcore-mission-bucket" }
+}
 
-  versioning { enabled = true }
-
-  lifecycle_rule {
-    id      = "glacier-transition"
-    enabled = true
-
-    transition {
-      days          = 90
-      storage_class = "GLACIER"
-    }
-
-    expiration {
-      days = 3650
-    }
+resource "aws_s3_bucket_versioning" "mission_bucket" {
+  bucket = aws_s3_bucket.mission_bucket.id
+  versioning_configuration {
+    status = "Enabled"
   }
-
-  tags = { Name = "fleetcore-artifacts" }
 }
 
 # SQS for telemetry
 resource "aws_sqs_queue" "telemetry" {
-  name = "fleetcore-telemetry-${random_id.suffix.hex}"
+  name = "FleetCoreTelemetry"
 }
 
 # Cognito User Pool
 resource "aws_cognito_user_pool" "fleetcore" {
-  name = "fleetcore-user-pool-${random_id.suffix.hex}"
+  name = "User pool - naqesf"
 
   admin_create_user_config {
     allow_admin_create_user_only = false
   }
 
   schema {
-    name = "email"
+    name                = "email"
     attribute_data_type = "String"
-    required = true
+    mutable             = true
+    required            = true
   }
 }
 
 resource "aws_cognito_user_pool_client" "fleetcore_client" {
-  name         = "fleetcore-client"
-  user_pool_id = aws_cognito_user_pool.fleetcore.id
-  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH","ALLOW_USER_SRP_AUTH","ALLOW_CUSTOM_AUTH","ALLOW_USER_PASSWORD_AUTH"]
-  allowed_oauth_flows_user_pool_client = false
+  name                = "fleetcore-desktop-client"
+  user_pool_id        = aws_cognito_user_pool.fleetcore.id
+  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH", "ALLOW_CUSTOM_AUTH", "ALLOW_USER_PASSWORD_AUTH"]
 }
 
-# RDS (Postgres) - single AZ for initial PoC
+# RDS (Postgres 17)
 resource "aws_db_subnet_group" "fleetcore" {
   name       = "fleetcore-db-sng-${random_id.suffix.hex}"
   subnet_ids = [aws_subnet.fleetcore_subnet.id]
 }
 
 resource "aws_db_instance" "fleetcore_db" {
+  identifier           = "fleetcore-db"
   allocated_storage    = 20
   engine               = "postgres"
-  engine_version       = "13"
+  engine_version       = "17.4"
   instance_class       = "db.t3.micro"
-  db_name              = var.rds_db_name
+  db_name              = "fleetcore"
   username             = var.rds_username
   password             = var.rds_password
   skip_final_snapshot  = true
   publicly_accessible  = true
   vpc_security_group_ids = [aws_security_group.fleetcore_sg.id]
   db_subnet_group_name = aws_db_subnet_group.fleetcore.name
-  tags = { Name = "fleetcore-rds" }
+  tags                 = { Name = "fleetcore-rds" }
 }
 
-# IoT: create policy (resources may require manual cert creation by devices)
+# IoT: Thing Type
+resource "aws_iot_thing_type" "pixhawk_drone" {
+  name = "pixhawk_drone"
+}
+
 resource "aws_iot_policy" "fleetcore" {
-  name   = "fleetcore-iot-policy-${random_id.suffix.hex}"
-  policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect":"Allow",
-      "Action":["iot:Connect","iot:Publish","iot:Subscribe","iot:Receive"],
-      "Resource":["*"]
-    }
-  ]
-}
-POLICY
+  name   = "fleetcore-iot-policy"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["iot:Connect", "iot:Publish", "iot:Subscribe", "iot:Receive", "iot:UpdateJobExecution", "iot:GetPendingJobExecutions"]
+      Resource = ["*"]
+    }]
+  })
 }
 
-# Lambda: create IAM role + function (we expect CI to upload zip to S3 bucket at var.lambda_s3_key)
-data "aws_iam_policy_document" "lambda_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
-}
-
+# Lambdas
 resource "aws_iam_role" "lambda_role" {
   name = "fleetcore-lambda-role-${random_id.suffix.hex}"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_logs" {
+resource "aws_iam_role_policy_attachment" "lambda_basic" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Allow Lambda to access RDS/S3 as needed — attach S3 readonly for now
-resource "aws_iam_role_policy_attachment" "lambda_s3" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
-}
-
-resource "aws_lambda_function" "mission_end" {
-  function_name = "fleetcore-mission-end-${random_id.suffix.hex}"
-  s3_bucket     = aws_s3_bucket.artifacts.id
-  s3_key        = var.lambda_s3_key
-  handler       = "handler.lambda_handler"
-  runtime       = "python3.9"
+resource "aws_lambda_function" "process_detection" {
+  function_name = "process-detection"
   role          = aws_iam_role.lambda_role.arn
-  depends_on = [aws_iam_role_policy_attachment.lambda_logs]
+  handler       = "index.handler"
+  runtime       = "python3.11"
+  filename      = "dummy_lambda.zip" # Expected to be replaced by actual build
+  lifecycle { ignore_changes = [filename, s3_bucket, s3_key, s3_object_version] }
 }
 
-# Note: IoT actions & SQS subscriptions may be wired up later with aws_iot_topic_rule resources as needed.
+resource "aws_lambda_function" "log_analyzer" {
+  function_name = "logAnalyzer"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "index.handler"
+  runtime       = "python3.11"
+  filename      = "dummy_lambda.zip"
+  lifecycle { ignore_changes = [filename, s3_bucket, s3_key, s3_object_version] }
+}
 
-# small data resource to get IoT endpoint
+# IoT Endpoint Data
 data "aws_iot_endpoint" "iot" {
   count         = var.aws_testing ? 0 : 1
   endpoint_type = "iot:Data-ATS"

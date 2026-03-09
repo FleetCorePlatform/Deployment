@@ -7,7 +7,7 @@ variable "cloud_provider" {
 // AWS region
 variable "aws_region" {
   type    = string
-  default = "us-east-1"
+  default = "eu-north-1"
 }
 
 // Networking

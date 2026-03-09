@@ -1,14 +1,19 @@
-# FleetCoreServer – Automated Deployment
+# FleetCore Platform – Automated Deployment & Documentation
 
-This repository contains infrastructure-as-code (IaC) definitions and playbooks to automate deployment of the **FleetCoreServer** application using **Terraform** and **Ansible**.
+This repository is the **Source of Truth** for the FleetCore ecosystem, containing centralized documentation, infrastructure-as-code (IaC), and automated deployment pipelines.
+
+## 📖 Live Documentation
+Our full, searchable documentation is available at:
+👉 **[https://FleetCorePlatform.github.io/Deployment/](https://FleetCorePlatform.github.io/Deployment/)**
 
 ---
 
-## 📦 Overview
+## 📦 Repository Overview
 
-- **Terraform** provisions cloud infrastructure (currently AWS only).
-- **Ansible** configures servers and deploys the application from the GitHub repository.
-- **GitHub Actions** provides an automated CI/CD pipeline for provisioning and configuration.
+- **`website/`**: Centralized documentation site built with **Docusaurus v3**.
+- **`infra/`**: Infrastructure-as-code (Terraform) and configuration management (Ansible).
+- **`db.sql`**: The official, PostGIS-enabled schema for the FleetCore database.
+- **`.github/workflows/`**: Automated CI/CD pipelines for infrastructure and documentation deployment.
 
 ---
 
