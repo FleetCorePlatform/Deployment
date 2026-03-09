@@ -54,9 +54,9 @@ const config: Config = {
 
   themeConfig: {
     // image: 'img/docusaurus-social-card.jpg',
-    // colorMode: {
-    //   respectPrefersColorScheme: true,
-    // },
+    colorMode: {
+      respectPrefersColorScheme: true,
+    },
     navbar: {
       title: 'FleetCore Platform',
       logo: {
@@ -66,7 +66,7 @@ const config: Config = {
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'sidebar',
           position: 'left',
           label: 'Documentation',
         },
@@ -78,7 +78,6 @@ const config: Config = {
       ],
     },
     footer: {
-      style: 'dark',
       links: [
         {
           title: 'Docs',
@@ -100,14 +99,26 @@ const config: Config = {
               label: 'Discussions',
               href: 'https://github.com/orgs/FleetCorePlatform/discussions',
             },
+            {
+              label: 'Roadmap',
+              href: 'https://github.com/orgs/FleetCorePlatform/projects/1',
+            },
           ],
         },
         {
-          title: 'More',
+          title: 'Projects',
           items: [
             {
-              label: 'GitHub',
-              href: 'https://github.com/FleetCorePlatform/Deployment',
+              label: 'Desktop Client',
+              href: 'https://github.com/FleetCorePlatform/FleetCoreDesktop',
+            },
+            {
+              label: 'Backend',
+              href: 'https://github.com/FleetCorePlatform/FleetCoreServer',
+            },
+            {
+              label: 'Drone Agent',
+              href: 'https://github.com/FleetCorePlatform/OnboardAgent',
             },
           ],
         },
