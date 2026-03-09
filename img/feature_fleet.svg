@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Top Drone -->
+  <g transform="translate(50, 25) scale(0.4) translate(-50, -50)">
+    <path d="M50 20 L80 50 L50 80 L20 50 Z" fill="#3578e5" opacity="0.8"/>
+    <circle cx="50" cy="50" r="10" fill="white" />
+  </g>
+  <!-- Left Drone -->
+  <g transform="translate(30, 65) scale(0.4) translate(-50, -50)">
+    <path d="M50 20 L80 50 L50 80 L20 50 Z" fill="#3578e5" opacity="0.8"/>
+    <circle cx="50" cy="50" r="10" fill="white" />
+  </g>
+  <!-- Right Drone -->
+  <g transform="translate(70, 65) scale(0.4) translate(-50, -50)">
+    <path d="M50 20 L80 50 L50 80 L20 50 Z" fill="#3578e5" opacity="0.8"/>
+    <circle cx="50" cy="50" r="10" fill="white" />
+  </g>
+  <!-- Connection Lines -->
+  <line x1="50" y1="25" x2="30" y2="65" stroke="#3578e5" stroke-width="2" stroke-dasharray="4" />
+  <line x1="50" y1="25" x2="70" y2="65" stroke="#3578e5" stroke-width="2" stroke-dasharray="4" />
+  <line x1="30" y1="65" x2="70" y2="65" stroke="#3578e5" stroke-width="2" stroke-dasharray="4" />
+</svg>
