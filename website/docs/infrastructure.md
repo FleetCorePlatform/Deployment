@@ -1,7 +1,7 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 ---
-# Infrastructure & AWS Integration
+# Infrastructure & Integration
 
 The FleetCore platform relies on a distributed AWS infrastructure to handle secure communication, data storage, and real-time streaming. This page explains **how** these components interact and **why** they were chosen.
 

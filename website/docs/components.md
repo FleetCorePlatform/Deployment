@@ -1,7 +1,7 @@
 ---
-sidebar_position: 3
+sidebar_position: 2
 ---
-# FleetCore Components
+# Components
 
 The FleetCore ecosystem consists of three primary active components that work together to manage drone fleets.
 

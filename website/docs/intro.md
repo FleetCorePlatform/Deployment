@@ -1,9 +1,10 @@
 ---
 sidebar_position: 1
 ---
-# Platform Overview
 
-Welcome to the **FleetCore Platform**'s documentation. This is a comprehensive documentaion for all projects within the FleetCore ecosystem.
+# Overview
+
+FleetCore is a platform for coordinating autonomous drone fleets across large survey areas, handling mission planning, area partitioning, real-time monitoring, and live video feed with manual control through a unified desktop control station.
 
 ## Project Structure
 
