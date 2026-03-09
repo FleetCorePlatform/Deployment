@@ -11,7 +11,7 @@ const config: Config = {
     v4: true,
   },
   url: 'https://FleetCorePlatform.github.io',
-  baseUrl: '/',
+  baseUrl: '/Deployment/',
   organizationName: 'FleetCorePlatform',
   projectName: 'Deployment',
   onBrokenLinks: 'throw',
