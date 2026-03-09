@@ -65,4 +65,4 @@ List<Point> path = mower.generatePath(subAreas.get(0));
 
 ## API Reference
 
-For a complete list of classes and methods, see the [Full API Reference](https://fleetcoreplatform.github.io/FleetCoreLib).
+For a complete list of classes and methods, see the [Full API Reference](https://fleetcoreplatform.github.io/FleetCoreLib/).

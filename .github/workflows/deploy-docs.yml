@@ -21,29 +21,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout FleetCoreLib
-        uses: actions/checkout@v4
-        with:
-          repository: FleetCorePlatform/FleetCoreLib
-          path: FleetCoreLib
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-          cache-dependency-path: FleetCoreLib/pom.xml
-
-      - name: Generate Javadoc
-        run: ./mvnw javadoc:javadoc
-        working-directory: FleetCoreLib
-
-      - name: Copy Javadoc to Docusaurus
-        run: |
-          mkdir -p website/static/api
-          cp -r FleetCoreLib/target/site/apidocs/* website/static/api/
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

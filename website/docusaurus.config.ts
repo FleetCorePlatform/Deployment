@@ -71,11 +71,6 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: 'https://fleetcoreplatform.github.io/FleetCoreLib',
-          label: 'API Reference',
-          position: 'left',
-        },
-        {
           href: 'https://github.com/FleetCorePlatform',
           label: 'GitHub',
           position: 'right',
