@@ -122,6 +122,19 @@ const config: Config = {
             },
           ],
         },
+        {
+          title: 'API',
+          items: [
+            {
+              label: 'OpenAPI Documentation',
+              href: 'https://fleetcoreplatform.github.io/FleetCoreServer',
+            },
+            {
+              label: 'Library JavaDoc',
+              href: 'https://fleetcoreplatform.github.io/FleetCoreLib',
+            }
+          ],
+        },
       ],
       copyright: `Copyright © ${new Date().getFullYear()} FleetCore Platform.`,
     },
