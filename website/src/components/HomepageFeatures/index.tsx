@@ -15,8 +15,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require('@site/static/img/feature_fleet.svg').default,
     description: (
       <>
-        Group your drones into outposts and manage survey missions from a centralized, 
-        geospatial-aware control plane.
+        Unify outpost management and mission planning within a single location-aware dashboard.
       </>
     ),
   },
@@ -25,8 +24,8 @@ const FeatureList: FeatureItem[] = [
     Svg: require('@site/static/img/feature_realtime.svg').default,
     description: (
       <>
-        Low-latency WebRTC video streaming and manual control via Gamepad (WebHID) 
-        integrated directly into the Desktop GCS.
+        Low-latency WebRTC video streaming and manual control
+        integrated directly into the dashboard.
       </>
     ),
   },
@@ -35,8 +34,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require('@site/static/img/feature_intelligent.svg').default,
     description: (
       <>
-        Recursive Binary Space Partitioning and Boustrophedon path generation algorithms 
-        ensure optimal mission distribution across the fleet.
+        Advanced area partitioning and optimized coverage paths maximize fleet efficiency.
       </>
     ),
   },
