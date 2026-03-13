@@ -1,5 +1,3 @@
-\restrict bR6euTeOJkYkwUbHWFplpFVbV3Gbdz3UNdcMXYDfbW9VQnYwrVL2N0MbElk2Enf
-
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
@@ -132,6 +130,18 @@ CREATE TABLE public.log_files (
 
 
 --
+-- Name: mission_drones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mission_drones (
+    mission_uuid uuid NOT NULL,
+    drone_uuid uuid NOT NULL,
+    assigned_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    status character varying DEFAULT 'pending'::character varying
+);
+
+
+--
 -- Name: missions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -237,6 +247,14 @@ ALTER TABLE ONLY public.log_files
 
 
 --
+-- Name: mission_drones mission_drones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mission_drones
+    ADD CONSTRAINT mission_drones_pkey PRIMARY KEY (mission_uuid, drone_uuid);
+
+
+--
 -- Name: missions missions_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -273,6 +291,13 @@ ALTER TABLE ONLY public.seat_tokens
 --
 
 CREATE INDEX idx_detections_location ON public.detections USING gist (location);
+
+
+--
+-- Name: idx_mission_drones_drone_uuid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_mission_drones_drone_uuid ON public.mission_drones USING btree (drone_uuid);
 
 
 --
@@ -332,6 +357,22 @@ ALTER TABLE ONLY public.drone_maintenance
 
 
 --
+-- Name: mission_drones fk_mission_drones_drone; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mission_drones
+    ADD CONSTRAINT fk_mission_drones_drone FOREIGN KEY (drone_uuid) REFERENCES public.drones(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: mission_drones fk_mission_drones_mission; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mission_drones
+    ADD CONSTRAINT fk_mission_drones_mission FOREIGN KEY (mission_uuid) REFERENCES public.missions(uuid) ON DELETE CASCADE;
+
+
+--
 -- Name: missions fk_missions_created_by; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -369,7 +410,3 @@ ALTER TABLE ONLY public.seat_tokens
 
 ALTER TABLE ONLY public.seat_tokens
     ADD CONSTRAINT fk_seat_tokens_group FOREIGN KEY ("group") REFERENCES public.groups(uuid) ON DELETE SET NULL;
-
-
-\unrestrict bR6euTeOJkYkwUbHWFplpFVbV3Gbdz3UNdcMXYDfbW9VQnYwrVL2N0MbElk2Enf
-
